@@ -30,5 +30,8 @@ urlpatterns = [
     path('api/deleteRsv/<code>/',delete_reservation),
     path('api/admin/create_stagiaire/',create_or_update_stagiaire),
     path('api/admin/deleteStg/<cin>/',delete_stagiaire),
-    path('api/admin/getAllStg/',get_all_stagiaires)
+    path('api/admin/getAllStg/',get_all_stagiaires),
+    path('api/admin/getAllEtr/',get_all_Etranger),
+    path('api/admin/createEtr/',create_etranger),
+    path('api/admin/getReserv/',get_reservations),
 ]

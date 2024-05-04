@@ -272,4 +272,46 @@ def get_all_stagiaires(request):
         return JsonResponse({'stagiaires': list(stagiaires)}, safe=False)
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])    
+def get_all_Etranger(request):
+    if request.method == 'GET':
+        stagiaires = Etranger.objects.all().values()  # Récupère tous les stagiaires sous forme de dictionnaires
+        return JsonResponse({'etranger': list(stagiaires)}, safe=False)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+    
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def create_etranger(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            id = data.get('id')
+            nom = data.get('nom')
+            
+            # Crée un nouvel objet Etranger
+            etranger = Etranger.objects.create(id=id, nom=nom)
+            
+            # Retourne une réponse avec l'ID de l'Etranger créé
+            return JsonResponse({'id': etranger.id}, status=201)
+        except Exception as e:
+            # En cas d'erreur, retourne une réponse avec le message d'erreur
+            return JsonResponse({'error': str(e)}, status=400)
+    else:
+        # Retourne une réponse indiquant que la méthode n'est pas autorisée pour cette vue
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])   
+def get_reservations(request):
+    if request.method == 'GET':
+        reservations_etranger = list(ResrvationEtranger.objects.values())
+        reservations_stagiaire = list(ResrvationStagiaire.objects.values())
+        return JsonResponse({'reservations_etranger': reservations_etranger, 'reservations_stagiaire': reservations_stagiaire})
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
 
