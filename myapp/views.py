@@ -314,4 +314,15 @@ def get_reservations(request):
         return JsonResponse({'reservations_etranger': reservations_etranger, 'reservations_stagiaire': reservations_stagiaire})
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+@csrf_exempt
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def delete_Etranger(request,id) : 
+    if request.method =="DELETE" : 
+        stagiaire_admin_efface = Etranger.objects.filter(id = id).first()
+        stagiaire_admin_efface.delete()
+        
+    else : 
+         return JsonResponse({"message": "methodeeeee"}, status=404)
 

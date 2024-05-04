@@ -34,4 +34,5 @@ urlpatterns = [
     path('api/admin/getAllEtr/',get_all_Etranger),
     path('api/admin/createEtr/',create_etranger),
     path('api/admin/getReserv/',get_reservations),
+    path('api/admin/deleteEtr/<id>/',delete_Etranger),
 ]
