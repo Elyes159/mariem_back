@@ -19,6 +19,7 @@ class StagiaireAdmin(models.Model) :
     code_postal = models.CharField(max_length=10)
     code_qr = models.CharField(max_length=4)
     email = models.EmailField()
+    image = models.BinaryField() 
     def __str__(self) : 
         return self.cin
     

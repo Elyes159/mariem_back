@@ -1,3 +1,4 @@
+import base64
 import datetime
 from django.shortcuts import render
 from myapp.models import ResrvationStagiaire, Stagiaire, StagiaireAdmin, TokenPourStagiaire
@@ -325,4 +326,52 @@ def delete_Etranger(request,id) :
         
     else : 
          return JsonResponse({"message": "methodeeeee"}, status=404)
+     
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def consulter_profil(request,token) : 
+    token_obj = TokenPourStagiaire.objects.filter(token = token).first()
+    if request.method =="GET" and token_obj:
+        user_obj = token_obj.user
+        
+        print(user_obj.cin)
+        stagadmin = StagiaireAdmin.objects.filter(cin = user_obj.cin).first()
+        image = base64.b64encode(stagadmin.image).decode('utf-8')
+        profile_data = {
+            "cin" : stagadmin.cin,
+            "prenom" : stagadmin.prenom,
+            "nom" : stagadmin.nom,
+            "tel" : stagadmin.tel,
+            "date_naissance" : stagadmin.date_naissance,
+            "lieu_naissance" : stagadmin.lieu_naissance,
+            "gouv" : stagadmin.gouv,
+            "code_postal" : stagadmin.code_postal,
+            "code_qr" : stagadmin.code_qr,
+            "email" : stagadmin.email,
+            "photo": image
+        }
+
+        return JsonResponse(profile_data)
+    else : 
+        return JsonResponse({"message" : "token non trouvé ou profil non trouvé "})
+    
+@api_view(['POST'])
+def ajouter_photo_stagiaire(request,token):
+    token_obj = TokenPourStagiaire.objects.filter(token = token).first() 
+    user_obj = token_obj.user
+    if request.method == 'POST':
+        if 'photo' in request.data:
+            photo = request.data.get('photo')
+            stagiaire = StagiaireAdmin.objects.filter(cin=user_obj.cin).first()
+            stagiaire.image = photo
+            
+            return JsonResponse({'message': 'Photo ajoutée avec succès'})
+        else:
+            return JsonResponse({'message': 'Aucune photo envoyée'}, status=400)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+
+         
+        
 

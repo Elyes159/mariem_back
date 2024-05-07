@@ -18,6 +18,9 @@ from django.contrib import admin
 from django.urls import path
 
 from myapp.views import *
+from pfe_back import settings
+from django.conf.urls.static import static
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -35,4 +38,8 @@ urlpatterns = [
     path('api/admin/createEtr/',create_etranger),
     path('api/admin/getReserv/',get_reservations),
     path('api/admin/deleteEtr/<id>/',delete_Etranger),
+    path('api/consulterprofil/<token>/',consulter_profil),
+    path('api/ajouter-photo/<token>/',ajouter_photo_stagiaire),
 ]
+if settings.DEBUG:
+    urlpatterns+= static(settings.MEDIA_URL,document_root=settings.MEDIA_ROOT)
