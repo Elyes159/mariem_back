@@ -124,7 +124,7 @@ from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_encode
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import send_mail
-from .models import  Etranger, ResrvationEtranger, TokenPourStagiaire
+from .models import  Etranger, ResrvationEtranger, SousAdmin, TokenPourStagiaire
 import random
 import string
 
@@ -372,6 +372,43 @@ def ajouter_photo_stagiaire(request,token):
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
 
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def creer_sous_admin(request)  :
+    if request.method =="POST" :
+        identifiant = request.data.get("identifiant")
+        password = request.data.get("password")
+        if identifiant and password : 
+            sous_admin = SousAdmin.objects.create(identifiant = identifiant,password = password)
+            sous_admin.save()
+            return JsonResponse({"message":"succes"},status=200)
+        else : 
+            return JsonResponse({"erroe":"noo!!"},status=400)
+    else : 
+        return JsonResponse({"method":"not allowed"},status=415)
+
+
+
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def login_sous_admin(request) : 
+    if request.method =="POST" : 
+        identifiant = request.data.get("identifiant")
+        password = request.data.get("password")
+        if identifiant and password : 
+            sous_ad = SousAdmin.objects.filter(identifiant = identifiant , password = password).first()
+            if sous_ad : 
+                return JsonResponse({"message":"succes"},status=200)
+            else :
+                return JsonResponse({"erreur":"donnee erroné"},status=400)
+        else : 
+            return JsonResponse({"erreur":"donnees manquant"},status = 400)
+    else : 
+        return JsonResponse({"erreru":"fezfezfezfez"},status=415)
+
+                
          
         
 

@@ -40,6 +40,8 @@ urlpatterns = [
     path('api/admin/deleteEtr/<id>/',delete_Etranger),
     path('api/consulterprofil/<token>/',consulter_profil),
     path('api/ajouter-photo/<token>/',ajouter_photo_stagiaire),
+    path('api/admin/create-admin/',creer_sous_admin),
+    path('api/LoginSAdmin/',login_sous_admin),
 ]
 if settings.DEBUG:
     urlpatterns+= static(settings.MEDIA_URL,document_root=settings.MEDIA_ROOT)

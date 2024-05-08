@@ -7,7 +7,7 @@ class Etranger(models.Model) :
     nom = models.CharField(max_length=100)
     def __str__(self) : 
         return self.id
-    
+
 class StagiaireAdmin(models.Model) : 
     cin = models.CharField(max_length=8)
     prenom = models.CharField(max_length=50)
@@ -68,3 +68,9 @@ class PasswordResetToken(models.Model) :
 
     def __str__(self) : 
         return self.user.cin
+    
+class SousAdmin(models.Model) : 
+    identifiant = models.CharField(unique=True,max_length=100)
+    password = models.CharField(max_length=100)
+    def __str__(self) : 
+        return self.identifiant
