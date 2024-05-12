@@ -21,6 +21,7 @@ def create_account(request):
             password = request.data.get('password')
             confirm_passord = request.data.get('confirm_passord')
             if cin and password and confirm_passord : 
+                
                 cin_stg_admin = StagiaireAdmin.objects.filter(cin = cin)
                 if cin_stg_admin and (password == confirm_passord) : 
                     stagiaire =  Stagiaire.objects.create(cin = cin, password = password, confirm_passord = confirm_passord)
@@ -51,6 +52,8 @@ def login(request):
     password = request.data.get('password')
     if cin:
         user1 = Stagiaire.objects.filter(cin=cin).first()
+        user2 = StagiaireAdmin.objects.filter(cin = cin).first()
+        
         password1 = user1.password if user1 else None
     else:
         print("haja 8alta houni")
@@ -61,9 +64,11 @@ def login(request):
         else :
             print("haja 8alta 8adi")
             return JsonResponse({'response':'mdpincorrecte'})
-    else:
+    elif (not(user1)and user2):
+        return JsonResponse({'error': 'incorrect password'}, status=470)
+    else : 
         return JsonResponse({'error': 'incorrect password'}, status=400)
-    
+
     
 @csrf_exempt
 @api_view(['POST'])
@@ -124,7 +129,7 @@ from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_encode
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import send_mail
-from .models import  Etranger, ResrvationEtranger, SousAdmin, TokenPourStagiaire
+from .models import  Abscence, Demande, Emploi, Etranger, Group, Matiere, PeriodeExamen, ResrvationEtranger, SousAdmin, TokenPourStagiaire
 import random
 import string
 
@@ -215,8 +220,9 @@ def create_or_update_stagiaire(request):
         lieu_naissance = request.data.get("lieu_naissance")
         gouv = request.data.get("gouv")
         code_postal = request.data.get("code_postal")
-        code_qr = request.data.get("code_qr")
+        code_group = request.data.get("code_group")
         email = request.data.get("email")
+        group = Group.objects.filter(numgr = code_group).first()
         stagiaire_admin = StagiaireAdmin.objects.create(
             cin=cin,
             prenom=prenom,
@@ -226,8 +232,8 @@ def create_or_update_stagiaire(request):
             lieu_naissance=lieu_naissance,
             gouv=gouv,
             code_postal=code_postal,
-            code_qr=code_qr,
-            email=email
+            group=group,
+            email=email,
         )
         stagiaire_admin.save()
         return JsonResponse({"message": "Stagiaire créé avec succès"}, status=201)
@@ -242,7 +248,6 @@ def create_or_update_stagiaire(request):
             stagiaire_admin.lieu_naissance = request.data.get("lieu_naissance", stagiaire_admin.lieu_naissance)
             stagiaire_admin.gouv = request.data.get("gouv", stagiaire_admin.gouv)
             stagiaire_admin.code_postal = request.data.get("code_postal", stagiaire_admin.code_postal)
-            stagiaire_admin.code_qr = request.data.get("code_qr", stagiaire_admin.code_qr)
             stagiaire_admin.email = request.data.get("email", stagiaire_admin.email)
             stagiaire_admin.save()
             return JsonResponse({"message": "Stagiaire mis à jour avec succès"}, status=200)
@@ -347,7 +352,7 @@ def consulter_profil(request,token) :
             "lieu_naissance" : stagadmin.lieu_naissance,
             "gouv" : stagadmin.gouv,
             "code_postal" : stagadmin.code_postal,
-            "code_qr" : stagadmin.code_qr,
+            "code_groupe" : stagadmin.group.numgr,
             "email" : stagadmin.email,
             "photo": image
         }
@@ -407,6 +412,209 @@ def login_sous_admin(request) :
             return JsonResponse({"erreur":"donnees manquant"},status = 400)
     else : 
         return JsonResponse({"erreru":"fezfezfezfez"},status=415)
+
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])   
+def create_emploi(request):
+    if request.method == 'POST':
+        group_id = request.POST.get('group_id')
+        photo = request.FILES.get('photo')
+        group = Group.objects.filter(numgr = group_id).first()
+
+        if group is None or photo is None:
+            return JsonResponse({"message": "Données manquantes"}, status=400)
+
+        try:
+            # Créez une instance de l'emploi avec les données fournies
+            emploi = Emploi.objects.create(group=group, photo=photo)
+            emploi.save()
+            return JsonResponse({"message": "Emploi créé avec succès"}, status=201)
+        except Exception as e:
+            return JsonResponse({"message": str(e)}, status=500)
+
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+    
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_photos_by_group_id(request, group_id):
+    if request.method == 'GET':
+        try:
+            group = Group.objects.get(numgr=group_id)
+            photos = Emploi.objects.filter(group=group)
+            photo_data = [{"photo": base64.b64encode(photo.photo.read()).decode('utf-8')} for photo in photos]
+            return JsonResponse({"photos": photo_data}, status=200)
+        except Group.DoesNotExist:
+            return JsonResponse({"message": "Le groupe spécifié n'existe pas"}, status=404)
+        except Exception as e:
+            return JsonResponse({"message": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_group_id(request, token):
+    if request.method == 'GET':
+        try:
+            token_obj = TokenPourStagiaire.objects.filter(token = token).first()
+            user = token_obj.user
+            stagiaire = StagiaireAdmin.objects.filter(cin = user.cin).first()
+            group = stagiaire.group
+            profile_data = {
+            "group_id" : group.numgr,
+            }
+            return JsonResponse({"message":profile_data}, status=200)
+        except Group.DoesNotExist:
+            return JsonResponse({"message": "Le groupe spécifié n'existe pas"}, status=404)
+        except Exception as e:
+            print(e)
+            return JsonResponse({"message": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def demande(request):
+    if request.method == "POST":
+        nom_prenom = request.data.get("nom_prenom")
+        cin = request.data.get("cin")
+        email = request.data.get("email")
+        cause = request.data.get("cause")
+
+        if nom_prenom and cin and email and cause:
+            demandee = Demande.objects.create(nom_prenom=nom_prenom, cin=cin, email=email, cause=cause)
+            demandee.save()
+            # Return success response with created Demande data (optional)
+            return JsonResponse({"success": True})  # Customize data
+        else:
+            return JsonResponse({"error": "Données manquantes"}, status=400)  # Use 400 for bad request
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+
+
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_demandes(request):
+    if request.method == 'GET':
+        try:
+            # Récupérer toutes les demandes de la base de données
+            demandes = Demande.objects.all()
+
+            # Serializer les données des demandes si nécessaire
+            demande_data = [{"nom_prenom": demande.nom_prenom,
+                             "cin": demande.cin,
+                             "email": demande.email,
+                             "cause": demande.cause} for demande in demandes]
+
+            # Retourner les données des demandes en tant que réponse JSON
+            return JsonResponse({"demandes": demande_data}, status=200)
+        except Exception as e:
+            # En cas d'erreur, renvoyer un message d'erreur avec le statut 500
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        # Si la méthode HTTP n'est pas autorisée, renvoyer un message avec le statut 405
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+    
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def send_email_confirm_demande(request, email):
+    if request.method == "POST":
+        try:
+            
+            email_subject = "demande accepté"
+            email_body = f"""
+            votre demande est accepté
+            """
+            send_mail(
+                email_subject,
+                email_body,
+                "elyesmlik307@gmail.com",
+                [email],
+                fail_silently=False
+            )
+
+        
+
+        except Exception as e:
+            print(f"Erreur lors de l'envoi de l'e-mail de réinitialisation du mot de passe : {e}")
+            return JsonResponse({"message": "Une erreur est survenue"}, status=500)
+
+        else:
+            return JsonResponse({"message": "Email de réinitialisation de mot de passe envoyé avec succès"}, status=200)
+        
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])        
+def get_absences(request,token):
+    token_obj = TokenPourStagiaire.objects.filter(token = token ).first()
+    user = token_obj.user
+    if request.method == 'GET':
+        try:
+            # Récupérer toutes les absences de la base de données
+            absences = Abscence.objects.filter(stagiaire = user)
+
+            # Serializer les données des absences si nécessaire
+            absences_data = [{
+                "stagiaire": absence.stagiaire.cin,
+                "matiere": absence.matiere.id,
+                "nb_heure": absence.nb_heure,
+                "periode": absence.periode.id
+            } for absence in absences]
+
+            # Retourner les données des absences en tant que réponse JSON
+            return JsonResponse({"absences": absences_data}, status=200)
+        except Exception as e:
+            # En cas d'erreur, renvoyer un message d'erreur avec le statut 500
+            print(e)
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        # Si la méthode HTTP n'est pas autorisée, renvoyer un message avec le statut 405
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+    
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def create_absence(request):
+
+    if request.method == 'POST':
+        try:
+            matiere_id = request.data.get("matiere_id")
+            nb_heure = request.data.get("nb_heure")
+            periode_id = request.data.get("periode_id")
+            cin = request.data.get("cin")
+            
+            user = Stagiaire.objects.filter(cin = cin).first()
+            periode = PeriodeExamen.objects.filter(id = periode_id).first()
+            matiere = Matiere.objects.filter(id = matiere_id).first()
+
+            # Vérifier si toutes les données nécessaires sont fournies
+            if matiere_id and nb_heure and periode_id:
+                # Créer une nouvelle absence dans la base de données
+                absence = Abscence.objects.create(
+                    stagiaire=user,
+                    matiere=matiere,
+                    nb_heure=nb_heure,
+                    periode=periode
+                )
+                absence.save()
+                return JsonResponse({"success": True}, status=201)
+            else:
+                return JsonResponse({"error": "Données manquantes"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+
+
+        
 
                 
          

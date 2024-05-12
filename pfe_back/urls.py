@@ -42,6 +42,14 @@ urlpatterns = [
     path('api/ajouter-photo/<token>/',ajouter_photo_stagiaire),
     path('api/admin/create-admin/',creer_sous_admin),
     path('api/LoginSAdmin/',login_sous_admin),
+    path('api/admin/createEmp/',create_emploi),
+    path('api/getgroupid/<token>/',get_group_id),
+    path('api/getemp/<group_id>/',get_photos_by_group_id),
+    path('api/demande/',demande),
+    path('api/admin/getdemande/',get_demandes),
+    path('api/admin/acceptDemande/<email>/',send_email_confirm_demande),
+    path('api/getabscence/<token>/',get_absences),
+    path('api/admin/createabscence/',create_absence),
 ]
 if settings.DEBUG:
     urlpatterns+= static(settings.MEDIA_URL,document_root=settings.MEDIA_ROOT)
