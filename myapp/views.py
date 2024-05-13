@@ -1,8 +1,9 @@
 import base64
 import datetime
-from django.shortcuts import render
+import os
+from django.shortcuts import get_object_or_404, render
 from myapp.models import ResrvationStagiaire, Stagiaire, StagiaireAdmin, TokenPourStagiaire
-from django.http import  JsonResponse
+from django.http import  HttpResponse, JsonResponse
 import json
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from django.views.decorators.csrf import csrf_exempt
@@ -73,54 +74,66 @@ def login(request):
 @csrf_exempt
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])
-def create_reservation_stagiaire(request,token):
-    if request.method =="POST" : 
-        token_obj = TokenPourStagiaire.objects.filter(token = token).first()
-        if token_obj : 
+def create_reservation_stagiaire(request, token):
+    if request.method == "POST":
+        token_obj = TokenPourStagiaire.objects.filter(token=token).first()
+        if token_obj:
+            stagiaire = token_obj.user
+            existing_reservation = ResrvationStagiaire.objects.filter(stagiaire=stagiaire).first()
+            if existing_reservation:
+                return JsonResponse({'error': 'Stagiaire already has a reservation'}, status=480)
             petit_dej = request.data.get('petit_dej')
             repas_midi = request.data.get('repas_midi')
             if repas_midi or petit_dej:
                 try:
-                    stagiaire = token_obj.user
                     now = datetime.datetime.now()
                     current_time_str = now.strftime('%Y-%m-%d %H:%M:%S')
-                    reservation = ResrvationStagiaire.objects.create(temps=current_time_str , stagiaire = stagiaire , petit_dej = petit_dej , repas_midi = repas_midi)
+                    reservation = ResrvationStagiaire.objects.create(
+                        temps=current_time_str,
+                        stagiaire=stagiaire,
+                        petit_dej=petit_dej,
+                        repas_midi=repas_midi
+                    )
                     reservation.save()
                     return JsonResponse({'message': 'Reservation created successfully'}, status=201)
                 except Exception as e:
                     return JsonResponse({'error': str(e)}, status=500)
             else:
                 return JsonResponse({'error': 'Datetime field is required'}, status=400)
+        else:
+            return JsonResponse({'error': 'Invalid token'}, status=401)
             
 @csrf_exempt
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])
-def create_reservation_Etranger(request,code):
-    if request.method =="POST" : 
-        etranger = Etranger.objects.filter(id = code).first()
-        if etranger : 
+def create_reservation_Etranger(request, code):
+    if request.method == "POST":
+        etranger = Etranger.objects.filter(id=code).first()
+        if etranger:
             petit_dej = request.data.get('petit_dej')
             repas_midi = request.data.get('repas_midi')
             diner = request.data.get('diner')
             nombre_personne = request.data.get("nombre_personne")
             if (repas_midi or petit_dej or diner) and nombre_personne:
                 try:
-                    
                     now = datetime.datetime.now()
                     current_time_str = now.strftime('%Y-%m-%d %H:%M:%S')
-                    etranger_reserve = ResrvationEtranger.objects.filter(etranger__id = code).first()
-                    print("houni")
-                    if not (etranger_reserve) : 
-                        reservation = ResrvationEtranger.objects.create(temps=current_time_str , etranger = etranger , petit_dej = petit_dej , repas_midi = repas_midi , diner = diner , nombre_personne = nombre_personne)
+                    etranger_reservation = ResrvationEtranger.objects.filter(etranger__id=code).first()
+                    if not etranger_reservation:
+                        reservation = ResrvationEtranger.objects.create(
+                            temps=current_time_str, etranger=etranger, petit_dej=petit_dej, repas_midi=repas_midi, diner=diner, nombre_personne=nombre_personne)
                         reservation.save()
                         return JsonResponse({'message': 'Reservation created successfully'}, status=201)
-                    else : 
-                        reservation = ResrvationEtranger.objects.update(temps=current_time_str , petit_dej = petit_dej , repas_midi = repas_midi , diner = diner , nombre_personne = nombre_personne)
-                        return JsonResponse({'message': 'Reservation updated successfully'}, status=201)
-                except Exception as e: 
+                    else:
+                        # Renvoyer le statut 480 si la réservation existe déjà
+                        return JsonResponse({'error': 'Reservation with this foreigner already exists'}, status=480)
+                except Exception as e:
                     return JsonResponse({'error': str(e)}, status=500)
             else:
                 return JsonResponse({'error': 'Datetime field is required'}, status=400)
+        else:
+            return JsonResponse({'error': 'Foreigner not found'}, status=404)
+
 
 
 
@@ -129,7 +142,7 @@ from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_encode
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import send_mail
-from .models import  Abscence, Demande, Emploi, Etranger, Group, Matiere, PeriodeExamen, ResrvationEtranger, SousAdmin, TokenPourStagiaire
+from .models import  Abscence, Demande, Emploi, Etranger, Evaluation, Group, Matiere, PeriodeExamen, ResrvationEtranger, SousAdmin, Specialite, TokenPourStagiaire
 import random
 import string
 
@@ -275,10 +288,15 @@ def delete_stagiaire(request,cin) :
 def get_all_stagiaires(request):
     if request.method == 'GET':
         stagiaires = StagiaireAdmin.objects.all().values()  # Récupère tous les stagiaires sous forme de dictionnaires
+        for stagiaire in stagiaires:
+            # Vérifier si 'image' est une chaîne de caractères (chemin de fichier)
+            if isinstance(stagiaire['image'], str) and os.path.isfile(stagiaire['image']):
+                with open(stagiaire['image'], 'rb') as image_file:
+                    encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+                    stagiaire['image'] = encoded_image
         return JsonResponse({'stagiaires': list(stagiaires)}, safe=False)
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
-@csrf_exempt
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])    
 def get_all_Etranger(request):
@@ -321,6 +339,34 @@ def get_reservations(request):
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
     
+    
+    
+    
+@csrf_exempt
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def delete_reservation_stagiaire(request, token):
+    if request.method == "DELETE":
+        token_obj = TokenPourStagiaire.objects.filter(token=token).first()
+        if token_obj:
+            stagiaire = token_obj.user
+            existing_reservation = ResrvationStagiaire.objects.filter(stagiaire=stagiaire).first()
+            if existing_reservation:
+                try:
+                    existing_reservation.delete()
+                    return JsonResponse({'message': 'Reservation deleted successfully'}, status=200)
+                except Exception as e:
+                    return JsonResponse({'error': str(e)}, status=500)
+            else:
+                return JsonResponse({'error': 'Stagiaire does not have any reservation'}, status=404)
+        else:
+            return JsonResponse({'error': 'Invalid token'}, status=401)
+
+    
+    
+    
+    
+    
 @csrf_exempt
 @api_view(['DELETE'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])
@@ -332,50 +378,86 @@ def delete_Etranger(request,id) :
     else : 
          return JsonResponse({"message": "methodeeeee"}, status=404)
      
+from django.core.files.base import ContentFile
+import base64
+
 @csrf_exempt
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])
-def consulter_profil(request,token) : 
-    token_obj = TokenPourStagiaire.objects.filter(token = token).first()
-    if request.method =="GET" and token_obj:
+def consulter_profil(request, token):
+    token_obj = TokenPourStagiaire.objects.filter(token=token).first()
+    if request.method == "GET" and token_obj:
         user_obj = token_obj.user
-        
-        print(user_obj.cin)
-        stagadmin = StagiaireAdmin.objects.filter(cin = user_obj.cin).first()
-        image = base64.b64encode(stagadmin.image).decode('utf-8')
+        stagadmin = StagiaireAdmin.objects.filter(cin=user_obj.cin).first()
+
+        # Vérifier si le stagiaire a une image
+        if stagadmin.image:
+            # Lire les données binaires de l'image
+            # photo_data = [{"photo": base64.b64encode(photo.photo.read()).decode('utf-8')} for photo in photos]
+
+            image_data = stagadmin.image.read()
+            # Encoder les données binaires en base64
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+        else:
+            # Si le stagiaire n'a pas d'image, définir image_base64 sur None
+            image_base64 = None
+
         profile_data = {
-            "cin" : stagadmin.cin,
-            "prenom" : stagadmin.prenom,
-            "nom" : stagadmin.nom,
-            "tel" : stagadmin.tel,
-            "date_naissance" : stagadmin.date_naissance,
-            "lieu_naissance" : stagadmin.lieu_naissance,
-            "gouv" : stagadmin.gouv,
-            "code_postal" : stagadmin.code_postal,
-            "code_groupe" : stagadmin.group.numgr,
-            "email" : stagadmin.email,
-            "photo": image
+            "cin": stagadmin.cin,
+            "prenom": stagadmin.prenom,
+            "nom": stagadmin.nom,
+            "tel": stagadmin.tel,
+            "date_naissance": stagadmin.date_naissance,
+            "lieu_naissance": stagadmin.lieu_naissance,
+            "gouv": stagadmin.gouv,
+            "code_postal": stagadmin.code_postal,
+            "code_groupe": stagadmin.group.numgr,
+            "email": stagadmin.email,
+            "photo": image_base64  # Utilisez image_base64 au lieu de image
         }
 
         return JsonResponse(profile_data)
-    else : 
-        return JsonResponse({"message" : "token non trouvé ou profil non trouvé "})
+    else:
+        return JsonResponse({"message": "Token non trouvé ou profil non trouvé"})
+
     
 @api_view(['POST'])
 def ajouter_photo_stagiaire(request,token):
     token_obj = TokenPourStagiaire.objects.filter(token = token).first() 
     user_obj = token_obj.user
     if request.method == 'POST':
-        if 'photo' in request.data:
-            photo = request.data.get('photo')
-            stagiaire = StagiaireAdmin.objects.filter(cin=user_obj.cin).first()
-            stagiaire.image = photo
+        photo = request.FILES.get('photo')
+        stagiaire = StagiaireAdmin.objects.filter(cin=user_obj.cin).first()
+        stagiaire.image = photo
+        stagiaire.save()
             
-            return JsonResponse({'message': 'Photo ajoutée avec succès'})
-        else:
-            return JsonResponse({'message': 'Aucune photo envoyée'}, status=400)
+        return JsonResponse({'message': 'Photo ajoutée avec succès'})
+        
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])   
+def create_emploi(request):
+    if request.method == 'POST':
+        group_id = request.POST.get('group_id')
+        photo = request.FILES.get('photo')
+        group = Group.objects.filter(numgr = group_id).first()
+
+        if group is None or photo is None:
+            return JsonResponse({"message": "Données manquantes"}, status=400)
+
+        try:
+            # Créez une instance de l'emploi avec les données fournies
+            emploi = Emploi.objects.create(group=group, photo=photo)
+            emploi.save()
+            return JsonResponse({"message": "Emploi créé avec succès"}, status=201)
+        except Exception as e:
+            return JsonResponse({"message": str(e)}, status=500)
+
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -413,28 +495,7 @@ def login_sous_admin(request) :
     else : 
         return JsonResponse({"erreru":"fezfezfezfez"},status=415)
 
-@csrf_exempt
-@api_view(['POST'])
-@authentication_classes([SessionAuthentication, BasicAuthentication])   
-def create_emploi(request):
-    if request.method == 'POST':
-        group_id = request.POST.get('group_id')
-        photo = request.FILES.get('photo')
-        group = Group.objects.filter(numgr = group_id).first()
 
-        if group is None or photo is None:
-            return JsonResponse({"message": "Données manquantes"}, status=400)
-
-        try:
-            # Créez une instance de l'emploi avec les données fournies
-            emploi = Emploi.objects.create(group=group, photo=photo)
-            emploi.save()
-            return JsonResponse({"message": "Emploi créé avec succès"}, status=201)
-        except Exception as e:
-            return JsonResponse({"message": str(e)}, status=500)
-
-    else:
-        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
     
     
 @csrf_exempt
@@ -583,7 +644,6 @@ def get_absences(request,token):
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 def create_absence(request):
-
     if request.method == 'POST':
         try:
             matiere_id = request.data.get("matiere_id")
@@ -612,7 +672,350 @@ def create_absence(request):
             return JsonResponse({"error": str(e)}, status=500)
     else:
         return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+    
+####matiere ####
 
+from django.http import JsonResponse
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_matiere(request):
+    try:
+        matieres = Matiere.objects.all()
+        matieres_data = []
+        for matiere in matieres:
+            matiere_data = {
+                'id': matiere.id,
+                'module': matiere.module,
+                'titre_module': matiere.titre_module,
+                'nb_heure': matiere.nb_heure,
+                'type': matiere.type,
+                'specialite': matiere.specialite.code_spec
+            }
+            matieres_data.append(matiere_data)
+        return JsonResponse({'matieres': matieres_data}, status=200)
+    except Exception as e:
+        print(e)
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def create_matiere(request):
+    if request.method == 'POST':
+        try:
+            id = request.data.get("id")
+            module = request.data.get('module')
+            titre_module = request.data.get('titre_module')
+            nb_heure = request.data.get('nb_heure')
+            type = request.data.get('type')
+            specialite_id = request.data.get('specialite_id')
+
+            if module and titre_module and nb_heure and type and specialite_id:
+                specialite = Specialite.objects.get(id=specialite_id)
+                matiere = Matiere.objects.create(id = id,module=module, titre_module=titre_module, nb_heure=nb_heure, type=type, specialite=specialite)
+                matiere.save()
+                return JsonResponse({'success': True}, status=201)
+            else:
+                return JsonResponse({'error': 'Données manquantes'}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+
+
+@csrf_exempt
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def delete_matiere(request, matiere_id):
+    if request.method == 'DELETE':
+        try:
+            matiere = Matiere.objects.get(id=matiere_id)
+            matiere.delete()
+            return JsonResponse({'success': True}, status=200)
+        except Matiere.DoesNotExist:
+            return JsonResponse({'message': 'La matière spécifiée n\'existe pas'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+
+
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_evaluations_by_token(request, token):
+    if request.method == 'GET':
+        try:
+            token_obj = TokenPourStagiaire.objects.filter(token = token).first()
+            stagiaire = token_obj.user
+            evaluations = Evaluation.objects.filter(stagiaire=stagiaire)
+            evaluations_data = []
+            for evaluation in evaluations:
+                evaluation_data = {
+                    'matiere_id': evaluation.matiere.id,
+                    'note': evaluation.note,
+                    'stagiaire_id': evaluation.stagiaire.id
+                }
+                evaluations_data.append(evaluation_data)
+            return JsonResponse({"evaluations": evaluations_data}, status=200)
+        except Stagiaire.DoesNotExist:
+            return JsonResponse({"message": "Le stagiaire spécifié n'existe pas"}, status=404)
+        except Exception as e:
+            print(e)
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def create_evaluation(request):
+    if request.method == 'POST':
+        try:
+            matiere_id = request.data.get("matiere_id")
+            note = request.data.get("note")
+            stagiaire_id = request.data.get("stagiaire_cin")
+            
+            matiere = Matiere.objects.get(id=matiere_id)
+            stagiaire = Stagiaire.objects.get(cin=stagiaire_id)
+
+            evaluation = Evaluation.objects.create(matiere=matiere, note=note, stagiaire=stagiaire)
+            evaluation.save()
+            return JsonResponse({"success": True}, status=201)
+        except Matiere.DoesNotExist:
+            return JsonResponse({"message": "La matière spécifiée n'existe pas"}, status=404)
+        except Stagiaire.DoesNotExist:
+            return JsonResponse({"message": "Le stagiaire spécifié n'existe pas"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_evaluations(request):
+    if request.method == 'GET':
+        try:
+            evaluations = Evaluation.objects.all()
+            evaluations_data = []
+            for evaluation in evaluations:
+                evaluation_data = {
+                    'matiere_id': evaluation.matiere.id,
+                    'note': evaluation.note,
+                    'stagiaire_id': evaluation.stagiaire.cin
+                }
+                evaluations_data.append(evaluation_data)
+            return JsonResponse({"evaluations": evaluations_data}, status=200)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def add_specialite(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        code_spec = data.get('code_spec')
+        nom_spec_ar = data.get('nom_spec_ar')
+        type = data.get('type')
+
+        if code_spec and nom_spec_ar and type:
+            try:
+                specialite = Specialite.objects.create(
+                    code_spec=code_spec,
+                    nom_spec_ar=nom_spec_ar,
+                    type=type
+                )
+                specialite.save()
+                return JsonResponse({'message': 'Spécialité ajoutée avec succès'}, status=201)
+            except Exception as e:
+                return JsonResponse({'error': str(e)}, status=500)
+        else:
+            return JsonResponse({'error': 'Tous les champs sont requis'}, status=400)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_specialites(request):
+    if request.method == 'GET':
+        specialites = Specialite.objects.all()
+        specialites_data = list(specialites.values())
+        return JsonResponse({'specialites': specialites_data})
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def add_group(request):
+    if request.method == 'POST':
+        try:
+            numgr = request.data.get('numgr')
+            specialite_id = request.data.get('specialite_id')
+            specialite = Specialite.objects.filter(code_spec =specialite_id).first()
+            group = Group.objects.create(numgr=numgr, specialite=specialite)
+            group.save()
+            return JsonResponse({"success": True}, status=201)
+        except Exception as e:
+            print(e)
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_groups(request):
+    if request.method == 'GET':
+        try:
+            groups = Group.objects.all()
+            groups_data = []
+            for group in groups:
+                group_data = {
+                    'numgr': group.numgr,
+                    'specialite_id': group.specialite.code_spec
+                }
+                groups_data.append(group_data)
+            return JsonResponse({"groups": groups_data}, status=200)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+# Fonction pour récupérer tous les objets SousAdmin
+def get_all_sous_admin(request):
+    if request.method == 'GET':
+        sous_admins = SousAdmin.objects.all().values()
+        return JsonResponse({'sous_admins': list(sous_admins)}, safe=False)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+
+@csrf_exempt
+def delete_sous_admin(request, identifiant):
+    if request.method == 'DELETE':
+        try:
+            sous_admin = SousAdmin.objects.get(identifiant=identifiant)
+            sous_admin.delete()
+            return JsonResponse({'message': 'Sous-admin supprimé avec succès'}, status=200)
+        except SousAdmin.DoesNotExist:
+            return JsonResponse({'message': 'Sous-admin non trouvé'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+###########nest7a99hom###############
+@csrf_exempt
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+def get_all_stagiaire_cin(request):
+    if request.method == 'GET':
+        try:
+            # Récupérer tous les stagiaires
+            stagiaires = Stagiaire.objects.all()
+
+            # Récupérer les CIN de tous les stagiaires
+            cins = [stagiaire.cin for stagiaire in stagiaires]
+
+            # Retourner la liste des CIN en tant que réponse JSON
+            return JsonResponse({"cins": cins}, status=200)
+        except Exception as e:
+            # En cas d'erreur, renvoyer un message d'erreur avec le statut 500
+            return JsonResponse({"error": str(e)}, status=500)
+    else:
+        # Si la méthode HTTP n'est pas autorisée, renvoyer un message avec le statut 405
+        return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+def get_all_matiere_ids(request):
+    if request.method == 'GET':
+        try:
+            # Récupérer tous les identifiants des objets Matiere
+            matiere_ids = Matiere.objects.values_list('id', flat=True)
+
+            # Convertir les identifiants en une liste
+            matiere_ids_list = list(matiere_ids)
+
+            # Retourner les identifiants en tant que réponse JSON
+            return JsonResponse({'matiere_ids': matiere_ids_list}, status=200)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+    
+    
+@csrf_exempt
+@api_view(['DELETE'])
+def delete_reservation_etranger(request, id):
+    try:
+        reservation = ResrvationEtranger.objects.get(id=id)
+        reservation.delete()
+        return JsonResponse({'message': 'La réservation d\'étranger a été supprimée avec succès'}, status=200)
+    except ResrvationEtranger.DoesNotExist:
+        return JsonResponse({'message': 'La réservation d\'étranger spécifiée n\'existe pas'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+# Fonction pour supprimer une réservation de stagiaire
+@csrf_exempt
+@api_view(['DELETE'])
+def delete_reservation_stagiaire(request, token):
+    
+    try:
+        token_obj = TokenPourStagiaire.objects.filter(token = token).first()
+        user = token_obj.user
+        reservation = ResrvationStagiaire.objects.get(stagiaire=user)
+        reservation.delete()
+        return JsonResponse({'message': 'La réservation de stagiaire a été supprimée avec succès'}, status=200)
+    except ResrvationStagiaire.DoesNotExist:
+        return JsonResponse({'message': 'La réservation de stagiaire spécifiée n\'existe pas'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)    
+
+    
+    
+def get_all_code_spec(request):
+    if request.method == 'GET':
+        code_specs = Specialite.objects.values_list('code_spec', flat=True)
+        return JsonResponse({'code_specs': list(code_specs)}, safe=False)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+def get_all_numgr(request):
+    if request.method == 'GET':
+        numgrs = Group.objects.values_list('numgr', flat=True)
+        return JsonResponse({'numgrs': list(numgrs)}, safe=False)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+    
+
+
+def get_stagiaire_by_cin(request, cin):
+    stagiaire = StagiaireAdmin.objects.filter(cin=cin).first()
+    if stagiaire:
+        # Sérialiser les champs nécessaires en JSON
+        stagiaire_data = {
+            'cin': stagiaire.cin,
+            'prenom': stagiaire.prenom,
+            'nom': stagiaire.nom,
+            'tel': stagiaire.tel,
+            'date_naissance': stagiaire.date_naissance,
+            'lieu_naissance': stagiaire.lieu_naissance,
+            'gouv': stagiaire.gouv,
+            'code_postal': stagiaire.code_postal,
+            'group': stagiaire.group.id,  # Exemple de sérialisation d'une clé étrangère
+            'email': stagiaire.email,
+            # Ajoutez d'autres champs si nécessaire
+        }
+        return JsonResponse({'stagiaire': stagiaire_data})
+    else:
+        return JsonResponse({'error': 'Aucun stagiaire trouvé'}, status=404)
 
         
 

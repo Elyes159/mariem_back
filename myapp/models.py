@@ -82,7 +82,7 @@ class StagiaireAdmin(models.Model) :
     code_postal = models.CharField(max_length=10)
     group = models.ForeignKey(Group , on_delete=models.CASCADE , related_name="idjvpo")
     email = models.EmailField()
-    image = models.BinaryField() 
+    image = models.ImageField(upload_to='categories/')
     def __str__(self) : 
         return self.cin
 

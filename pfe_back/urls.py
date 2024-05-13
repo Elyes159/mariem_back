@@ -50,6 +50,26 @@ urlpatterns = [
     path('api/admin/acceptDemande/<email>/',send_email_confirm_demande),
     path('api/getabscence/<token>/',get_absences),
     path('api/admin/createabscence/',create_absence),
+    path('api/admin/getmatiere/',get_matiere),
+    path('api/admin/creatematiere/',create_matiere),
+    path('api/admin/deletematiere/<matiere_id>/',delete_matiere),
+    path('api/admin/geteval/',get_evaluations),
+    path('api/admin/createeval/',create_evaluation),
+    path('api/getAllcin/',get_all_stagiaire_cin),
+    path('api/getAllMId/',get_all_matiere_ids),
+    path('api/getevalbytoken/<token>/',get_evaluations_by_token),
+    path('api/admin/addspec/',add_specialite),
+    path('api/admin/getspec/',get_specialites),
+    path('api/admin/addGroup/',add_group),
+    path('api/admin/getGroup/',get_groups),
+    path('api/getidspec/',get_all_code_spec),
+    path('api/admin/getAllNumgr/',get_all_numgr),
+    path('api/admin/getsousadmin/',get_all_sous_admin),
+    path('api/admin/deletesousadmin/<identifiant>/',delete_sous_admin),
+    path('api/admin/deleteReservationEtranger/<id>/',delete_reservation_etranger),
+    path('api/admin/deleteReservationStagiaire/<id>/',delete_reservation_stagiaire),
+    path('api/deleteReservation/<token>/',delete_reservation_stagiaire),
+    path('api/admin/getstgbycin/<cin>/',get_stagiaire_by_cin)
 ]
 if settings.DEBUG:
     urlpatterns+= static(settings.MEDIA_URL,document_root=settings.MEDIA_ROOT)
