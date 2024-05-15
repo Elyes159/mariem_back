@@ -262,10 +262,17 @@ def create_or_update_stagiaire(request):
             stagiaire_admin.gouv = request.data.get("gouv", stagiaire_admin.gouv)
             stagiaire_admin.code_postal = request.data.get("code_postal", stagiaire_admin.code_postal)
             stagiaire_admin.email = request.data.get("email", stagiaire_admin.email)
+        
+            code_group = request.data.get("code_group", stagiaire_admin.group.numgr if stagiaire_admin.group else None)
+            if code_group:
+                group = Group.objects.filter(numgr=code_group).first()
+                stagiaire_admin.group = group
+        
             stagiaire_admin.save()
             return JsonResponse({"message": "Stagiaire mis à jour avec succès"}, status=200)
         else:
             return JsonResponse({"message": "Stagiaire non trouvé"}, status=404)
+
     else:
         return JsonResponse({"message": "Méthode non autorisée"}, status=405)
 
@@ -328,16 +335,33 @@ def create_etranger(request):
     else:
         # Retourne une réponse indiquant que la méthode n'est pas autorisée pour cette vue
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+from django.db.models import Count
+
 @csrf_exempt
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])   
 def get_reservations(request):
     if request.method == 'GET':
-        reservations_etranger = list(ResrvationEtranger.objects.values())
-        reservations_stagiaire = list(ResrvationStagiaire.objects.values())
-        return JsonResponse({'reservations_etranger': reservations_etranger, 'reservations_stagiaire': reservations_stagiaire})
+        reservations_etranger = ResrvationEtranger.objects.all()
+        reservations_stagiaire = ResrvationStagiaire.objects.all()
+
+        # Nombre total de réservations pour chaque modèle
+        total_reservations_etranger = reservations_etranger.count()
+        total_reservations_stagiaire = reservations_stagiaire.count()
+
+        # Convertir les queryset en liste de dictionnaires
+        reservations_etranger_data = list(reservations_etranger.values())
+        reservations_stagiaire_data = list(reservations_stagiaire.values())
+
+        return JsonResponse({
+            'reservations_etranger': reservations_etranger_data,
+            'reservations_stagiaire': reservations_stagiaire_data,
+            'nombre_total_reservations_etranger': total_reservations_etranger,
+            'nombre_total_reservations_stagiaire': total_reservations_stagiaire
+        })
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+
     
     
     
