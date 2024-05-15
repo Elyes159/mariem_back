@@ -69,7 +69,9 @@ urlpatterns = [
     path('api/admin/deleteReservationEtranger/<id>/',delete_reservation_etranger),
     path('api/admin/deleteReservationStagiaire/<id>/',delete_reservation_stagiaire),
     path('api/deleteReservation/<token>/',delete_reservation_stagiaire),
-    path('api/admin/getstgbycin/<cin>/',get_stagiaire_by_cin)
+    path('api/admin/getstgbycin/<cin>/',get_stagiaire_by_cin),
+    path('api/admin/deletegroup/<numgr>/',delete_group),
+    path('api/admin/updategroup/<numgr>/',update_group),
 ]
 if settings.DEBUG:
     urlpatterns+= static(settings.MEDIA_URL,document_root=settings.MEDIA_ROOT)

@@ -1040,6 +1040,32 @@ def get_stagiaire_by_cin(request, cin):
         return JsonResponse({'stagiaire': stagiaire_data})
     else:
         return JsonResponse({'error': 'Aucun stagiaire trouvé'}, status=404)
+    
+@csrf_exempt
+def delete_group(request, numgr):
+    if request.method == 'DELETE':
+        try:
+            group = Group.objects.get(numgr=numgr)
+            group.delete()
+            return JsonResponse({'message': 'Group deleted successfully'}, status=200)
+        except Group.DoesNotExist:
+            return JsonResponse({'message': 'Group not found'}, status=404)
+    else:
+        return JsonResponse({'message': 'Method not allowed'}, status=405)
+    
+@csrf_exempt
+def update_group(request, numgr):
+    if request.method == 'PUT':
+        try:
+            group = Group.objects.get(numgr=numgr)
+            # Mettre à jour les champs du groupe
+            group.specialite.code_spec = request.POST.get('specialite_id', group.specialite.code_spec)
+            group.save()
+            return JsonResponse({'message': 'Group updated successfully'}, status=200)
+        except Group.DoesNotExist:
+            return JsonResponse({'message': 'Group not found'}, status=404)
+    else:
+        return JsonResponse({'message': 'Method not allowed'}, status=405)
 
         
 
