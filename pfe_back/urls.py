@@ -72,6 +72,15 @@ urlpatterns = [
     path('api/admin/getstgbycin/<cin>/',get_stagiaire_by_cin),
     path('api/admin/deletegroup/<numgr>/',delete_group),
     path('api/admin/updategroup/<numgr>/',update_group),
+    path('api/admin/getspec/',get_specialites),
+    path('api/admin/deletespec/<code_spec>/', delete_specialite),
+    path('api/admin/getemplois/', get_emplois, name='get_emplois'),
+    path('api/admin/deleteemploi/<group_id>/', delete_emploi, name='delete_emploi'),
+    path('api/admin/getmatieres/', get_matieres, name='get_matieres'),
+    path('api/admin/getabscence/', get_abscences, name='absceceget'),
+    path('api/admin/updatematieres/<abscence_id>/', update_abscence, name='update'),
+    path('api/admin/deleteabsc/<abscence_id>/', delete_abscence, name='delte'),
+
 ]
 if settings.DEBUG:
     urlpatterns+= static(settings.MEDIA_URL,document_root=settings.MEDIA_ROOT)

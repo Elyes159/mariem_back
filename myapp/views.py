@@ -482,6 +482,38 @@ def create_emploi(request):
 
     else:
         return JsonResponse({"message": "Méthode non autorisée"}, status=405)
+    
+@csrf_exempt
+def get_emplois(request):
+    if request.method == 'GET':
+        emplois = Emploi.objects.all()
+        emplois_data = []
+        for emploi in emplois:
+            with open(emploi.photo.path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            emplois_data.append({
+                'group_id': emploi.group.numgr,
+                'photo': encoded_string,
+            })
+        return JsonResponse({'emplois': emplois_data}, status=200)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def delete_emploi(request, group_id):
+    if request.method == 'DELETE':
+        try:
+            emploi = Emploi.objects.get(group__numgr=group_id)
+            emploi.delete()
+            return JsonResponse({'message': 'Emploi supprimé avec succès'}, status=200)
+        except Emploi.DoesNotExist:
+            return JsonResponse({'error': 'Emploi non trouvé'}, status=404)
+    else:
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+
 
 @csrf_exempt
 @api_view(['POST'])
@@ -595,6 +627,7 @@ def get_demandes(request):
                              "cin": demande.cin,
                              "email": demande.email,
                              "cause": demande.cause} for demande in demandes]
+            
 
             # Retourner les données des demandes en tant que réponse JSON
             return JsonResponse({"demandes": demande_data}, status=200)
@@ -624,6 +657,8 @@ def send_email_confirm_demande(request, email):
                 [email],
                 fail_silently=False
             )
+            Demande.objects.filter(email=email).delete()
+            
 
         
 
@@ -723,6 +758,25 @@ def get_matiere(request):
         print(e)
         return JsonResponse({'error': str(e)}, status=500)
     
+def get_specialites(request):
+    if request.method == 'GET':
+        specialites = Specialite.objects.all().values()
+        return JsonResponse({'specialites': list(specialites)}, status=200)
+    else:
+        return JsonResponse({'message': 'Method not allowed'}, status=405)
+    
+@csrf_exempt
+def delete_specialite(request, code_spec):
+    if request.method == 'DELETE':
+        try:
+            specialite = Specialite.objects.get(code_spec=code_spec)
+            specialite.delete()
+            return JsonResponse({'message': 'Specialité supprimée avec succès'}, status=200)
+        except Specialite.DoesNotExist:
+            return JsonResponse({'message': 'Specialité non trouvée'}, status=404)
+    else:
+        return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
 @csrf_exempt
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, BasicAuthentication])
@@ -737,17 +791,75 @@ def create_matiere(request):
             specialite_id = request.data.get('specialite_id')
 
             if module and titre_module and nb_heure and type and specialite_id:
-                specialite = Specialite.objects.get(id=specialite_id)
+                specialite = Specialite.objects.get(code_spec=specialite_id)
                 matiere = Matiere.objects.create(id = id,module=module, titre_module=titre_module, nb_heure=nb_heure, type=type, specialite=specialite)
                 matiere.save()
                 return JsonResponse({'success': True}, status=201)
             else:
                 return JsonResponse({'error': 'Données manquantes'}, status=400)
         except Exception as e:
+            print(e)
             return JsonResponse({'error': str(e)}, status=500)
     else:
         return JsonResponse({'message': 'Méthode non autorisée'}, status=405)
+    
+from django.http import JsonResponse
+from .models import Matiere
 
+def get_matieres(request):
+    matieres = Matiere.objects.all()
+    matiere_list = [
+        {
+            'id': matiere.id,
+            'module': matiere.module,
+            'titre_module': matiere.titre_module,
+            'nb_heure': matiere.nb_heure,
+            'type': matiere.type,
+            'specialite': matiere.specialite.code_spec,
+        }
+        for matiere in matieres
+    ]
+    return JsonResponse({'matieres': matiere_list})
+
+def get_abscences(request):
+    abscences = Abscence.objects.all()
+    abscence_list = [
+        {
+            'id': abscence.id,
+            'stagiaire_id': abscence.stagiaire.id,
+            'matiere_id': abscence.matiere.id,
+            'nb_heure': abscence.nb_heure,
+            'periode_id': abscence.periode.id,
+        }
+        for abscence in abscences
+    ]
+    return JsonResponse({'abscences': abscence_list})
+
+@csrf_exempt
+def update_abscence(request, abscence_id):
+    try:
+        abscence = Abscence.objects.get(id=abscence_id)
+    except Abscence.DoesNotExist:
+        return JsonResponse({'error': 'Abscence not found'}, status=404)
+
+    if request.method == 'PUT':
+        data = json.loads(request.body)
+        abscence.nb_heure = data.get('nb_heure', abscence.nb_heure)
+        abscence.save()
+        return JsonResponse({'message': 'Abscence updated successfully'})
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
+from django.http import JsonResponse
+from .models import Abscence
+
+def delete_abscence(request, abscence_id):
+    try:
+        abscence = Abscence.objects.get(id=abscence_id)
+    except Abscence.DoesNotExist:
+        return JsonResponse({'error': 'Abscence not found'}, status=404)
+
+    abscence.delete()
+    return JsonResponse({'message': 'Abscence deleted successfully'})
 
 @csrf_exempt
 @api_view(['DELETE'])

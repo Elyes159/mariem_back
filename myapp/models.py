@@ -98,7 +98,7 @@ class Matiere(models.Model) :
     specialite = models.ForeignKey(Specialite ,on_delete = models.CASCADE ,related_name="spec1")
     
 class Emploi(models.Model) : 
-    group = models.ForeignKey(Group , on_delete=models.CASCADE,related_name="ygiuo")
+    group = models.OneToOneField(Group , on_delete=models.CASCADE,related_name="ygiuo")
     photo = models.ImageField(upload_to='categories/')
 class Demande(models.Model) : 
     nom_prenom = models.CharField(max_length=200)
